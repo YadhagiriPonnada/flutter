@@ -1,0 +1,286 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => CartProvider(),
+      child: MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Shopping App',
+      theme: ThemeData(
+        primarySwatch: Colors.teal,
+        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: AppBarTheme(
+          color: Colors.teal.shade300,
+          iconTheme: IconThemeData(color: Colors.white),
+        ),
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          backgroundColor: Colors.teal.shade100,
+          selectedItemColor: Colors.teal.shade700,
+          unselectedItemColor: Colors.teal.shade400,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.teal.shade600,
+            foregroundColor: Colors.white, // Updated from onPrimary to foregroundColor
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.teal.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.teal.shade500),
+          ),
+        ),
+      ),
+      home: HomePage(),
+    );
+  }
+}
+
+class Product {
+  final String name;
+  final double price;
+
+  Product(this.name, this.price);
+}
+
+class CartProvider extends ChangeNotifier {
+  Map<Product, int> _items = {};
+
+  Map<Product, int> get items => _items;
+
+  double get totalAmount {
+    return _items.entries.fold(0, (total, entry) => total + (entry.key.price * entry.value));
+  }
+
+  void addItem(Product product) {
+    if (_items.containsKey(product)) {
+      _items[product] = _items[product]! + 1;
+    } else {
+      _items[product] = 1;
+    }
+    notifyListeners();
+  }
+
+  void removeItem(Product product) {
+    if (_items.containsKey(product)) {
+      if (_items[product]! > 1) {
+        _items[product] = _items[product]! - 1;
+      } else {
+        _items.remove(product);
+      }
+    }
+    notifyListeners();
+  }
+}
+
+class HomePage extends StatelessWidget {
+  final List<Product> products = [
+    Product('T-Shirt', 19.99),
+    Product('Jeans', 49.99),
+    Product('Jacket', 89.99),
+    Product('Sneakers', 79.99),
+    Product('Hat', 24.99),
+    Product('Socks', 9.99),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Products')),
+      body: ListView.builder(
+        itemCount: products.length,
+        itemBuilder: (context, index) {
+          return ListTile(
+            title: Text(products[index].name),
+            subtitle: Text('\$${products[index].price.toStringAsFixed(2)}'),
+            trailing: IconButton(
+              icon: Icon(Icons.add_shopping_cart, color: Colors.teal.shade600),
+              onPressed: () {
+                Provider.of<CartProvider>(context, listen: false).addItem(products[index]);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${products[index].name} added to cart'),
+                    backgroundColor: Colors.teal.shade200,
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        items: [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Products'),
+          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Cart'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
+        onTap: (index) {
+          if (index == 1) {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => CartPage()));
+          } else if (index == 2) {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => ProfilePage()));
+          }
+        },
+      ),
+    );
+  }
+}
+
+class CartPage extends StatefulWidget {
+  @override
+  _CartPageState createState() => _CartPageState();
+}
+
+class _CartPageState extends State<CartPage> {
+  final TextEditingController _discountController = TextEditingController();
+  String _selectedPaymentMethod = 'Credit Card';
+
+  @override
+  Widget build(BuildContext context) {
+    final cart = Provider.of<CartProvider>(context);
+    final cartItems = cart.items;
+    final totalAmount = cart.totalAmount;
+
+    return Scaffold(
+      appBar: AppBar(title: Text('Cart')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: _discountController,
+              decoration: InputDecoration(
+                labelText: 'Enter Discount Code',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: DropdownButton<String>(
+              value: _selectedPaymentMethod,
+              isExpanded: true,
+              items: ['Credit Card', 'PayPal', 'Bank Transfer'].map((method) {
+                return DropdownMenuItem<String>(
+                  value: method,
+                  child: Text(method),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedPaymentMethod = value!;
+                });
+              },
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: cartItems.length,
+              itemBuilder: (context, index) {
+                final product = cartItems.keys.elementAt(index);
+                final quantity = cartItems[product];
+                return ListTile(
+                  title: Text(product.name),
+                  subtitle: Text('${quantity}x \$${product.price.toStringAsFixed(2)}'),
+                  trailing: IconButton(
+                    icon: Icon(Icons.remove_circle, color: Colors.red.shade300),
+                    onPressed: () {
+                      cart.removeItem(product);
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              'Total Amount: \$${totalAmount.toStringAsFixed(2)}',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: ElevatedButton(
+              onPressed: () {
+                final discountCode = _discountController.text;
+                // Handle payment logic here
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Proceeding with $_selectedPaymentMethod and discount code: $discountCode'),
+                  ),
+                );
+              },
+              child: Text('Proceed to Payment'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ProfilePage extends StatelessWidget {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Profile')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            TextField(
+              controller: _nameController,
+              decoration: InputDecoration(
+                labelText: 'Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            SizedBox(height: 16.0),
+            TextField(
+              controller: _emailController,
+              decoration: InputDecoration(
+                labelText: 'Email',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            SizedBox(height: 16.0),
+            ElevatedButton(
+              onPressed: () {
+                final name = _nameController.text;
+                final email = _emailController.text;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Profile Updated: $name, $email'),
+                    backgroundColor: Colors.teal.shade200,
+                  ),
+                );
+              },
+              child: Text('Save Profile'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
